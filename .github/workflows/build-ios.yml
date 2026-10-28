@@ -1,0 +1,26 @@
+name: DUMIYA Client - iOS Simulator
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'test/**']
+jobs:
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.35.7'
+          cache: true
+      - run: flutter create --project-name dumiya_client --platforms=android,ios .
+      - name: Generate branded launcher icons
+        run: |
+          python3 -m venv .icon-venv
+          .icon-venv/bin/python -m pip install Pillow
+          .icon-venv/bin/python tool/generate_icons.py
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - name: Build iOS (unsigned simulator binary)
+        run: flutter build ios --simulator --debug --no-codesign --dart-define=SHOP_API_BASE=${{ vars.SHOP_API_BASE }} --dart-define=SHOP_STORE_SLUG=dumiya
