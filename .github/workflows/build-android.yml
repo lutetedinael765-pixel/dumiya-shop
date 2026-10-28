@@ -1,0 +1,48 @@
+name: DUMIYA Client - Android Test APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, develop, 'test/**']
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.35.7'
+          cache: true
+      - name: Generate Flutter platform files
+        run: flutter create --project-name dumiya_client --platforms=android,ios .
+      - name: Generate branded launcher icons
+        run: |
+          python3 -m venv .icon-venv
+          .icon-venv/bin/python -m pip install Pillow
+          .icon-venv/bin/python tool/generate_icons.py
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - name: Verify Odoo Shop API configuration
+        env:
+          SHOP_API_BASE: ${{ vars.SHOP_API_BASE }}
+          SHOP_STORE_SLUG: dumiya
+        run: |
+          if [ -z "$SHOP_API_BASE" ]; then
+            echo '::error::Missing Actions repository variable SHOP_API_BASE (Settings > Secrets and variables > Actions > Variables).'
+            exit 1
+          fi
+          case "$SHOP_API_BASE" in
+            https://*) ;;
+            *) echo '::error::SHOP_API_BASE must begin with https://'; exit 1 ;;
+          esac
+      - name: Build test APK
+        env:
+          SHOP_API_BASE: ${{ vars.SHOP_API_BASE }}
+          SHOP_STORE_SLUG: dumiya
+        run: flutter build apk --debug --dart-define="SHOP_API_BASE=$SHOP_API_BASE" --dart-define="SHOP_STORE_SLUG=$SHOP_STORE_SLUG"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DUMIYA-Client-Android-debug
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
